@@ -25,3 +25,8 @@ An access token contains security information associated with a logon session (i
 -> The SIDs of any domain groups the user is a member of.
 -> A list of privileges (i.e. user right assignments) the user has.
 -> The token's integrity level (e.g. Low, Medium, High, System).
+
+Credential Cache
+As we known from the OS Credential Dumping lesson, LSASS stores credentials (including plaintext, NTLM & AES hashes, and Kerberos tickets) in memory, on behalf of users who have active logon sessions.  
+When a process attempts to access a network resource, Windows uses the information in its access token to lookup the associated logon session and its associated credential cache.  
+Those cached credentials are then used to authenticate to the remote service.
